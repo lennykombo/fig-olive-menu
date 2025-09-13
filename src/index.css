@@ -1,13 +1,66 @@
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+/* sweeping glow effect */
+.dish-card {
+  position: relative;
+  overflow: hidden;
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+.dish-card::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -150%;
+  width: 150%;
+  height: 100%;
+  background: linear-gradient(
+    120deg,
+    transparent 0%,
+    rgba(124, 179, 66, 0.35) 40%,
+    rgba(124, 179, 66, 0.6) 60%,
+    transparent 100%
+  );
+  transform: skewX(-20deg);
+  animation: sweep-glow 2.5s infinite;
+}
+
+@keyframes sweep-glow {
+  0% {
+    left: -150%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+/* stronger premium sweep */
+.dish-card.premium::after {
+  background: linear-gradient(
+    120deg,
+    transparent 0%,
+    rgba(255, 215, 0, 0.4) 40%,
+    rgba(255, 215, 0, 0.8) 60%,
+    transparent 100%
+  );
+  animation: sweep-glow-premium 2.2s infinite;
+}
+
+@keyframes sweep-glow-premium {
+  0% {
+    left: -150%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+.menu-page {
+  position: relative;
+  min-height: 100vh;
+  background: url("/src/assets/figlogo.png") center/20% no-repeat;
+  background-color: #fafafa; /* fallback */
+  background-attachment: fixed; /* keeps logo steady */
+  background-blend-mode: lighten; /* makes it faint */
 }

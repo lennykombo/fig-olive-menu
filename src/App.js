@@ -1,24 +1,45 @@
-import logo from './logo.svg';
 import './App.css';
+import { useState, useEffect } from "react";
+import { db } from './firebase';
+import { collection, getDocs } from "firebase/firestore";
+import Menu from './pages/Menu';
+import Welcome from './pages/Welcome';
 
 function App() {
+  const [categories, setCategories] = useState([]);
+  const [activeCategory, setActiveCategory] = useState(null);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, "category"));
+        const categoryList = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          name: doc.data().name
+        }));
+        setCategories(categoryList);
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+      }
+    };
+    fetchCategories();
+  }, []);
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <>
+      {activeCategory ? (
+        <Menu
+          activeTab={activeCategory} 
+          onBack={() => setActiveCategory(null)}
+          categories={categories} 
+        />
+      ) : (
+        <Welcome
+          categories={categories} 
+          onSelect={(catId) => setActiveCategory(catId)}
+        />
+      )}
+    </>
   );
 }
 
