@@ -4,6 +4,15 @@ import { db } from './firebase';
 import { collection, getDocs } from "firebase/firestore";
 import Menu from './pages/Menu';
 import Welcome from './pages/Welcome';
+import PrivateRoute from './componets/PrivateRoute';
+import Login from './pages/Login'
+
+// admin pages
+import Dashboard from './pages/Dashboard';
+//import Categories from './pages/admin/Categories';
+import MenuItems from './pages/Dashmenu';
+
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 
 function App() {
   const [categories, setCategories] = useState([]);
@@ -26,20 +35,41 @@ function App() {
   }, []);
 
   return (
-    <>
-      {activeCategory ? (
-        <Menu
-          activeTab={activeCategory} 
-          onBack={() => setActiveCategory(null)}
-          categories={categories} 
+    <Router>
+      <Routes>
+        {/* Public routes */}
+        <Route
+          path="/"
+          element={
+            activeCategory ? (
+              <Menu
+                activeTab={activeCategory}
+                onBack={() => setActiveCategory(null)}
+                categories={categories}
+              />
+            ) : (
+              <Welcome
+                categories={categories}
+                onSelect={(catId) => setActiveCategory(catId)}
+              />
+            )
+          }
         />
-      ) : (
-        <Welcome
-          categories={categories} 
-          onSelect={(catId) => setActiveCategory(catId)}
-        />
-      )}
-    </>
+<Route path="/login" element={<Login />} />
+        {/* Admin routes */}
+        <Route path="/admin" element={
+          <PrivateRoute>
+          <Dashboard />
+          </PrivateRoute>
+        } />
+        {/*<Route path="/admin/categories" element={<Categories />} />*/}
+        <Route path="/dashmenu" element={
+          <PrivateRoute>
+          <MenuItems />
+          </PrivateRoute>
+        } />
+      </Routes>
+    </Router>
   );
 }
 

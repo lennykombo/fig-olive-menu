@@ -1,0 +1,451 @@
+// src/pages/admin/Dashboard.jsx
+import { useState, useEffect } from "react";
+import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import { db } from "../firebase"; 
+import toast, { Toaster } from "react-hot-toast";
+//import { MoreVertical } from "lucide-react";
+//import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import Sidebar from "../componets/Sidebar";
+
+const Dashmenu = () => {
+  const [categories, setCategories] = useState([]);
+  const [newItem, setNewItem] = useState({
+    name: "",
+    description: "",
+    price: "",
+    categoryId: "",
+    image: null,
+  });
+  const [menuItems, setMenuItems] = useState([]);
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [deleteModal, setDeleteModal] = useState({ open: false, itemId: null, itemName: "" });
+  const [updateModal, setUpdateModal] = useState({
+  open: false,
+  itemId: null,
+  name: "",
+  description: "",
+  price: "",
+  categoryId: "",
+});
+const [searchQuery, setSearchQuery] = useState("");
+
+
+useEffect(() => {
+  const fetchMenuItems = async () => {
+    try {
+      const snapshot = await getDocs(collection(db, "menu"));
+      const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setMenuItems(items);
+    } catch (err) {
+      console.error("Error fetching menu items:", err);
+    }
+  };
+
+  fetchMenuItems();
+}, []);
+
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const snapshot = await getDocs(collection(db, "category"));
+        setCategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } catch (err) {
+        console.error("Error fetching categories:", err);
+      }
+    };
+    fetchCategories();
+  }, []);
+
+  const handleChange = (e) => {
+    setNewItem({ ...newItem, [e.target.name]: e.target.value });
+  };
+
+  /*const handleImageUpload = (e) => {
+    setNewItem({ ...newItem, image: e.target.files[0] });
+  };*/
+
+  const handleSubmit = async (e) => {
+  e.preventDefault();
+  try {
+    await addDoc(collection(db, "menu"), {
+      name: newItem.name,
+      description: newItem.description,
+      price: newItem.price,
+      category: newItem.categoryId,
+      createdAt: new Date(),
+    });
+
+    toast.success(`${newItem.name} has been added to the menu!`);
+    // Fetch updated menu items
+   const snapshot = await getDocs(collection(db, "menu"));
+   setMenuItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+    setNewItem({
+      name: "",
+      description: "",
+      price: "",
+      categoryId: "",
+    });
+  } catch (err) {
+    console.error("Error adding menu item:", err);
+  }
+};
+
+const toggleMenu = (id) => {
+  setOpenMenuId(openMenuId === id ? null : id);
+};
+
+const fetchMenuItems = async () => {
+  try {
+    const snapshot = await getDocs(collection(db, "menu"));
+    const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setMenuItems(items);
+  } catch (err) {
+    console.error("Error fetching menu items:", err);
+  }
+};
+
+useEffect(() => {
+  fetchMenuItems();
+}, []);
+
+useEffect(() => {
+  const handleClickOutside = () => setOpenMenuId(null);
+  document.addEventListener("click", handleClickOutside);
+  return () => document.removeEventListener("click", handleClickOutside);
+}, []);
+
+
+  const categoryMap = categories.reduce((map, cat) => {
+    map[cat.id] = cat.name;
+    return map;
+  }, {});
+
+  /*const groupedMenu = menuItems.reduce((groups, item) => {
+  const categoryName = categoryMap[item.category] || "Unknown";
+  if (!groups[categoryName]) {
+    groups[categoryName] = [];
+  }
+  groups[categoryName].push(item);
+  return groups;
+}, {});*/
+
+/*const filteredGroupedMenu = Object.entries(groupedMenu).reduce((acc, [categoryName, items]) => {
+  // Check if category name matches search
+  const categoryMatches = categoryName.toLowerCase().includes(searchQuery.toLowerCase());
+
+  // Filter items that match search query
+  const matchingItems = items.filter(item =>
+    item.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Include all items if category matches, otherwise include only matching items
+  if (categoryMatches) {
+    acc[categoryName] = items; // all items in this category
+  } else if (matchingItems.length > 0) {
+    acc[categoryName] = matchingItems; // only items that match
+  }
+
+  return acc;
+}, {});*/
+const filteredMenu = menuItems.filter(item => {
+  const itemNameMatch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
+  const categoryNameMatch = (categoryMap[item.category] || "")
+    .toLowerCase()
+    .includes(searchQuery.toLowerCase());
+  return itemNameMatch || categoryNameMatch;
+});
+
+const filteredGroupedMenu = filteredMenu.reduce((groups, item) => {
+  const categoryName = categoryMap[item.category] || "Unknown";
+  if (!groups[categoryName]) groups[categoryName] = [];
+  groups[categoryName].push(item);
+  return groups;
+}, {});
+
+
+const isSearching = searchQuery.trim() !== "";
+
+
+  return (
+    <div className="flex min-h-screen gap-7"
+       style={{ backgroundColor: "#FAF3E0" }}
+    >
+      <Toaster position="top-right" reverseOrder={false} />
+
+      {/* Sidebar */}
+      <Sidebar />
+     <div>
+      <h2 className="text-xl font-bold mb-4 px-6 pt-16">Add Menu Item</h2>
+      <form onSubmit={handleSubmit} className="space-y-4 px-4">
+        <input
+          type="text"
+          name="name"
+          placeholder="Item Name"
+          value={newItem.name}
+          onChange={handleChange}
+          className="border p-2 w-full rounded"
+          required
+        />
+        <textarea
+          name="description"
+          placeholder="Description"
+          value={newItem.description}
+          onChange={handleChange}
+          className="border p-2 w-full rounded"
+          required
+        />
+        <input
+          type="number"
+          name="price"
+          placeholder="Price"
+          value={newItem.price}
+          onChange={handleChange}
+          className="border p-2 w-full rounded"
+          required
+        />
+        <select
+          name="categoryId"
+          value={newItem.categoryId}
+          onChange={handleChange}
+          className="border p-2 w-full rounded"
+          required
+        >
+          <option value="">Select Category</option>
+          {categories.map(cat => (
+            <option key={cat.id} value={cat.id}>
+              {cat.name}
+            </option>
+          ))}
+        </select>
+        {/*<input
+          type="file"
+          accept="image/*"
+          onChange={handleImageUpload}
+          className="border p-2 w-full rounded"
+        />*/}
+        <button
+          type="submit"
+          className="text-white px-4 py-2 rounded"
+          style={{ backgroundColor: "#3D441E" }}
+        >
+          Add Item
+        </button>
+      </form>
+              <div className="mt-10 px-4">
+  <h3 className="text-lg font-semibold mb-4">Menu Items</h3>
+  <div className="px-4 mb-4">
+  <input
+    type="text"
+    placeholder="Search by menu item or category..."
+    value={searchQuery}
+    onChange={(e) => setSearchQuery(e.target.value)}
+    className="border p-2 w-full rounded"
+  />
+</div>
+<div  className={`px-4 ${
+    isSearching
+      ? "flex flex-col gap-6"       // Single column for search
+      : "columns-1 md:columns-2 lg:columns-3 gap-6" // Masonry for full menu
+  }`}>
+  {Object.keys(filteredGroupedMenu).length === 0 ? (
+  <p className="text-gray-500">No items found.</p>
+) : (
+  Object.entries(filteredGroupedMenu).map(([categoryName, items]) => (
+    <div key={categoryName} className="mb-6">
+      <h4 className="text-xl font-bold mb-2">{categoryName}</h4>
+      <ul className="space-y-2">
+        {items.map((item) => (
+          <li
+            key={item.id}
+            className="p-4 bg-white rounded shadow flex justify-between items-center relative"
+          >
+            <div>
+              <h5 className="font-bold">{item.name}</h5>
+              <p className="text-sm text-gray-600">{item.description}</p>
+            </div>
+
+            <div className="flex items-center gap-4 relative">
+              <span className="font-medium">{item.price}</span>
+
+              {/* Three dots button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleMenu(item.id);
+                }}
+                className="p-1 rounded hover:bg-gray-100"
+              >
+                ⋮
+              </button>
+
+              {openMenuId === item.id && (
+                <div
+                  className="absolute right-0 top-8 w-32 bg-white border rounded shadow-md z-10"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    onClick={() =>
+                      setUpdateModal({
+                        open: true,
+                        itemId: item.id,
+                        name: item.name,
+                        description: item.description,
+                        price: item.price,
+                        categoryId: item.category,
+                      })
+                    }
+                    className="block w-full px-4 py-2 text-left hover:bg-gray-100"
+                  >
+                    Update
+                  </button>
+                  <button
+                    onClick={() =>
+                      setDeleteModal({
+                        open: true,
+                        itemId: item.id,
+                        itemName: item.name,
+                      })
+                    }
+                    className="block w-full px-4 py-2 text-left text-red-600 hover:bg-red-100"
+                  >
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  ))
+)}
+</div>
+</div>
+
+
+      </div>
+      {deleteModal.open && (
+  <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-50">
+    <div className="bg-white p-6 rounded shadow-lg w-80">
+      <h3 className="text-lg font-bold mb-4">Confirm Delete</h3>
+      <p className="mb-6">Are you sure you want to delete "{deleteModal.itemName}"?</p>
+      <div className="flex justify-end gap-4">
+        <button
+          onClick={() => setDeleteModal({ open: false, itemId: null, itemName: "" })}
+          className="px-4 py-2 rounded border hover:bg-gray-100"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={async () => {
+            await deleteDoc(doc(db, "menu", deleteModal.itemId));
+            toast.success(`${deleteModal.itemName} deleted`);
+            fetchMenuItems();
+            setDeleteModal({ open: false, itemId: null, itemName: "" });
+          }}
+          className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{updateModal.open && (
+  <div className="fixed inset-0 bg-black bg-opacity-30 flex justify-center items-center z-50">
+    <div className="bg-white p-6 rounded shadow-lg w-96">
+      <h3 className="text-lg font-bold mb-4">Update Menu Item</h3>
+
+      <input
+        type="text"
+        placeholder="Name"
+        value={updateModal.name}
+        onChange={(e) =>
+          setUpdateModal({ ...updateModal, name: e.target.value })
+        }
+        className="border p-2 w-full rounded mb-2"
+      />
+      <textarea
+        placeholder="Description"
+        value={updateModal.description}
+        onChange={(e) =>
+          setUpdateModal({ ...updateModal, description: e.target.value })
+        }
+        className="border p-2 w-full rounded mb-2"
+      />
+      <input
+        type="number"
+        placeholder="Price"
+        value={updateModal.price}
+        onChange={(e) =>
+          setUpdateModal({ ...updateModal, price: e.target.value })
+        }
+        className="border p-2 w-full rounded mb-2"
+      />
+      <select
+        value={updateModal.categoryId}
+        onChange={(e) =>
+          setUpdateModal({ ...updateModal, categoryId: e.target.value })
+        }
+        className="border p-2 w-full rounded mb-4"
+      >
+        <option value="">Select Category</option>
+        {categories.map((cat) => (
+          <option key={cat.id} value={cat.id}>
+            {cat.name}
+          </option>
+        ))}
+      </select>
+
+      <div className="flex justify-end gap-4">
+        <button
+          onClick={() =>
+            setUpdateModal({
+              open: false,
+              itemId: null,
+              name: "",
+              description: "",
+              price: "",
+              categoryId: "",
+            })
+          }
+          className="px-4 py-2 rounded border hover:bg-gray-100"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={async () => {
+            await updateDoc(doc(db, "menu", updateModal.itemId), {
+              name: updateModal.name,
+              description: updateModal.description,
+              price: updateModal.price,
+              category: updateModal.categoryId,
+            });
+            toast.success(`${updateModal.name} updated successfully`);
+            fetchMenuItems();
+            setUpdateModal({
+              open: false,
+              itemId: null,
+              name: "",
+              description: "",
+              price: "",
+              categoryId: "",
+            });
+          }}
+          className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+        >
+          Update
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+    </div>
+  );
+};
+
+export default Dashmenu;
