@@ -3,6 +3,7 @@ import { useState } from "react";
 import { auth } from "../firebase"; 
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
+import logo from "../assets/figlogo.png"
 
 const Login = ()=>  {
 
@@ -23,11 +24,13 @@ const Login = ()=>  {
 
   return (
      <div className="flex items-center justify-center min-h-screen bg-gray-100">
+        
       <form
         onSubmit={handleLogin}
         className="bg-white shadow-md rounded-lg p-6 w-96"
       >
-        <h2 className="text-2xl font-bold mb-4 text-center">Admin Login</h2>
+         <img src={logo} alt="Logo" className="w-32 h-32 mb-4 mx-auto" />
+       { <h2 className="text-2xl font-bold mb-4 text-center">Admin Login</h2>}
 
         {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
 

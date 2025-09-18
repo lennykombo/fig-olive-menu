@@ -36,3 +36,12 @@
     transform: rotate(360deg);
   }
 }
+
+.category-tab {
+  transition: all 0.3s ease;
+}
+
+.category-tab:hover {
+  transform: translateY(-2px);
+  background-color: rgba(164, 214, 0, 0.1); /* subtle green highlight */
+}

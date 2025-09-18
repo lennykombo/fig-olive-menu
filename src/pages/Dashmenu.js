@@ -1,4 +1,3 @@
-// src/pages/admin/Dashboard.jsx
 import { useState, useEffect } from "react";
 import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase"; 
@@ -14,6 +13,7 @@ const Dashmenu = () => {
     description: "",
     price: "",
     categoryId: "",
+    subcategoryId:"",
     image: null,
   });
   const [menuItems, setMenuItems] = useState([]);
@@ -26,8 +26,23 @@ const Dashmenu = () => {
   description: "",
   price: "",
   categoryId: "",
+  subcategoryId: "",
 });
 const [searchQuery, setSearchQuery] = useState("");
+const [subcategories, setSubcategories] = useState([]);
+
+
+useEffect(() => {
+  const fetchSubcategories = async () => {
+    try {
+      const snapshot = await getDocs(collection(db, "subcategory"));
+      setSubcategories(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    } catch (err) {
+      console.error("Error fetching subcategories:", err);
+    }
+  };
+  fetchSubcategories();
+}, []);
 
 
 useEffect(() => {
@@ -70,10 +85,13 @@ useEffect(() => {
   try {
     await addDoc(collection(db, "menu"), {
       name: newItem.name,
-      description: newItem.description,
+      //description: newItem.description,
       price: newItem.price,
       category: newItem.categoryId,
-      createdAt: new Date(),
+      //subcategoryId: newItem.subcategoryId,
+        createdAt: new Date(),
+      ...(newItem.description && { description: newItem.description }),
+      ...(newItem.subcategoryId && { subcategoryId: newItem.subcategoryId }) 
     });
 
     toast.success(`${newItem.name} has been added to the menu!`);
@@ -116,53 +134,55 @@ useEffect(() => {
   return () => document.removeEventListener("click", handleClickOutside);
 }, []);
 
+// 1. Map categories
+const categoryMap = categories.reduce((map, cat) => {
+  map[cat.id] = cat.name;
+  return map;
+}, {});
 
-  const categoryMap = categories.reduce((map, cat) => {
-    map[cat.id] = cat.name;
-    return map;
-  }, {});
+// 2. Map subcategories
+const subcategoryMap = subcategories.reduce((map, sub) => {
+  map[sub.id] = { name: sub.name, categoryId: sub.categoryId };
+  return map;
+}, {});
 
-  /*const groupedMenu = menuItems.reduce((groups, item) => {
-  const categoryName = categoryMap[item.category] || "Unknown";
-  if (!groups[categoryName]) {
-    groups[categoryName] = [];
-  }
-  groups[categoryName].push(item);
-  return groups;
-}, {});*/
-
-/*const filteredGroupedMenu = Object.entries(groupedMenu).reduce((acc, [categoryName, items]) => {
-  // Check if category name matches search
-  const categoryMatches = categoryName.toLowerCase().includes(searchQuery.toLowerCase());
-
-  // Filter items that match search query
-  const matchingItems = items.filter(item =>
-    item.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  // Include all items if category matches, otherwise include only matching items
-  if (categoryMatches) {
-    acc[categoryName] = items; // all items in this category
-  } else if (matchingItems.length > 0) {
-    acc[categoryName] = matchingItems; // only items that match
-  }
-
-  return acc;
-}, {});*/
-const filteredMenu = menuItems.filter(item => {
+// 3. Filter menu items (keep only once)
+/*const filteredMenu = menuItems.filter(item => {
   const itemNameMatch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
   const categoryNameMatch = (categoryMap[item.category] || "")
     .toLowerCase()
     .includes(searchQuery.toLowerCase());
   return itemNameMatch || categoryNameMatch;
+});*/
+// 3. Filter menu items (keep only once)
+const filteredMenu = menuItems.filter(item => {
+  const itemNameMatch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
+  const categoryNameMatch = (categoryMap[item.category] || "")
+    .toLowerCase()
+    .includes(searchQuery.toLowerCase());
+  const subcategoryNameMatch = item.subcategoryId
+    ? (subcategoryMap[item.subcategoryId]?.name || "")
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase())
+    : false;
+
+  return itemNameMatch || categoryNameMatch || subcategoryNameMatch;
 });
 
-const filteredGroupedMenu = filteredMenu.reduce((groups, item) => {
-  const categoryName = categoryMap[item.category] || "Unknown";
-  if (!groups[categoryName]) groups[categoryName] = [];
-  groups[categoryName].push(item);
-  return groups;
-}, {});
+
+// 4. Group menu items into Category → Subcategory → Items
+const groupedMenu = {};
+
+filteredMenu.forEach((item) => {
+  const categoryName = categoryMap[item.category] || "Unknown Category";
+  const sub = subcategoryMap[item.subcategoryId]; // ✅ match your DB field
+  const subcategoryName = sub ? sub.name : " ";
+
+  if (!groupedMenu[categoryName]) groupedMenu[categoryName] = {};
+  if (!groupedMenu[categoryName][subcategoryName]) groupedMenu[categoryName][subcategoryName] = [];
+
+  groupedMenu[categoryName][subcategoryName].push(item);
+});
 
 
 const isSearching = searchQuery.trim() !== "";
@@ -175,8 +195,8 @@ const isSearching = searchQuery.trim() !== "";
       <Toaster position="top-right" reverseOrder={false} />
 
       {/* Sidebar */}
-      <Sidebar />
-     <div>
+      <Sidebar className="w-64 flex-shrink-0" />
+     <div className="flex-1">
       <h2 className="text-xl font-bold mb-4 px-6 pt-16">Add Menu Item</h2>
       <form onSubmit={handleSubmit} className="space-y-4 px-4">
         <input
@@ -194,7 +214,6 @@ const isSearching = searchQuery.trim() !== "";
           value={newItem.description}
           onChange={handleChange}
           className="border p-2 w-full rounded"
-          required
         />
         <input
           type="number"
@@ -219,12 +238,24 @@ const isSearching = searchQuery.trim() !== "";
             </option>
           ))}
         </select>
-        {/*<input
-          type="file"
-          accept="image/*"
-          onChange={handleImageUpload}
-          className="border p-2 w-full rounded"
-        />*/}
+        <select
+  name="subcategoryId"
+  value={newItem.subcategoryId}
+  onChange={handleChange}
+  className="border p-2 w-full rounded"
+  disabled={!newItem.categoryId} // ✅ disable until category is chosen
+>
+  <option value="">Select Subcategory</option>
+  {subcategories
+    .filter(sub => sub.categoryId === newItem.categoryId) // ✅ show only relevant
+    .map(sub => (
+      <option key={sub.id} value={sub.id}>
+        {sub.name}
+      </option>
+    ))}
+</select>
+
+        
         <button
           type="submit"
           className="text-white px-4 py-2 rounded"
@@ -238,7 +269,7 @@ const isSearching = searchQuery.trim() !== "";
   <div className="px-4 mb-4">
   <input
     type="text"
-    placeholder="Search by menu item or category..."
+    placeholder="Search by menu item, subcategory or category..."
     value={searchQuery}
     onChange={(e) => setSearchQuery(e.target.value)}
     className="border p-2 w-full rounded"
@@ -249,78 +280,92 @@ const isSearching = searchQuery.trim() !== "";
       ? "flex flex-col gap-6"       // Single column for search
       : "columns-1 md:columns-2 lg:columns-3 gap-6" // Masonry for full menu
   }`}>
-  {Object.keys(filteredGroupedMenu).length === 0 ? (
+  {Object.keys(groupedMenu).length === 0 ? (
   <p className="text-gray-500">No items found.</p>
 ) : (
-  Object.entries(filteredGroupedMenu).map(([categoryName, items]) => (
-    <div key={categoryName} className="mb-6">
-      <h4 className="text-xl font-bold mb-2">{categoryName}</h4>
-      <ul className="space-y-2">
-        {items.map((item) => (
-          <li
-            key={item.id}
-            className="p-4 bg-white rounded shadow flex justify-between items-center relative"
-          >
-            <div>
-              <h5 className="font-bold">{item.name}</h5>
-              <p className="text-sm text-gray-600">{item.description}</p>
-            </div>
+  Object.entries(groupedMenu).map(([categoryName, subcats]) => (
+    <div key={categoryName} className="mb-8">
+      {/* Category Title */}
+      <h2 className="text-2xl font-bold mb-4">{categoryName}</h2>
 
-            <div className="flex items-center gap-4 relative">
-              <span className="font-medium">{item.price}</span>
+      {/* Loop subcategories */}
+      {Object.entries(subcats).map(([subcatName, items]) => (
+        <div key={subcatName} className="ml-6 mb-6">
+          <h3 className="text-lg font-semibold mb-2">{subcatName}</h3>
 
-              {/* Three dots button */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleMenu(item.id);
-                }}
-                className="p-1 rounded hover:bg-gray-100"
+          <ul className="space-y-2">
+            {items.map((item) => (
+              <li
+                key={item.id}
+                className="p-4 bg-white rounded shadow flex justify-between items-center relative"
               >
-                ⋮
-              </button>
-
-              {openMenuId === item.id && (
-                <div
-                  className="absolute right-0 top-8 w-32 bg-white border rounded shadow-md z-10"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <button
-                    onClick={() =>
-                      setUpdateModal({
-                        open: true,
-                        itemId: item.id,
-                        name: item.name,
-                        description: item.description,
-                        price: item.price,
-                        categoryId: item.category,
-                      })
-                    }
-                    className="block w-full px-4 py-2 text-left hover:bg-gray-100"
-                  >
-                    Update
-                  </button>
-                  <button
-                    onClick={() =>
-                      setDeleteModal({
-                        open: true,
-                        itemId: item.id,
-                        itemName: item.name,
-                      })
-                    }
-                    className="block w-full px-4 py-2 text-left text-red-600 hover:bg-red-100"
-                  >
-                    Delete
-                  </button>
+                {/* Left: Item info */}
+                <div>
+                  <h4 className="font-bold">{item.name}</h4>
+                  <p className="text-sm text-gray-600">{item.description}</p>
                 </div>
-              )}
-            </div>
-          </li>
-        ))}
-      </ul>
+
+                {/* Right: Price + actions */}
+                <div className="flex items-center gap-4 relative">
+                  <span className="font-medium">{item.price}</span>
+
+                  {/* Three dots button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleMenu(item.id);
+                    }}
+                    className="p-1 rounded hover:bg-gray-100"
+                  >
+                    ⋮
+                  </button>
+
+                  {/* Dropdown menu */}
+                  {openMenuId === item.id && (
+                    <div
+                      className="absolute right-0 top-8 w-32 bg-white border rounded shadow-md z-10"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        onClick={() =>
+                          setUpdateModal({
+                            open: true,
+                            itemId: item.id,
+                            name: item.name,
+                            description: item.description,
+                            price: item.price,
+                            categoryId: item.category,
+                            subcategoryId: item.subcategoryId,
+                          })
+                        }
+                        className="block w-full px-4 py-2 text-left hover:bg-gray-100"
+                      >
+                        Update
+                      </button>
+                      <button
+                        onClick={() =>
+                          setDeleteModal({
+                            open: true,
+                            itemId: item.id,
+                            itemName: item.name,
+                          })
+                        }
+                        className="block w-full px-4 py-2 text-left text-red-600 hover:bg-red-100"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </div>
   ))
 )}
+
 </div>
 </div>
 
@@ -386,6 +431,24 @@ const isSearching = searchQuery.trim() !== "";
         className="border p-2 w-full rounded mb-2"
       />
       <select
+  value={updateModal.subcategoryId || ""}
+  onChange={(e) =>
+    setUpdateModal({ ...updateModal, subcategoryId: e.target.value })
+  }
+  className="border p-2 w-full rounded mb-4"
+  disabled={!updateModal.categoryId} // disable until category chosen
+>
+  <option value="">Select Subcategory</option>
+  {subcategories
+    .filter((sub) => sub.categoryId === updateModal.categoryId)
+    .map((sub) => (
+      <option key={sub.id} value={sub.id}>
+        {sub.name}
+      </option>
+    ))}
+</select>
+
+      <select
         value={updateModal.categoryId}
         onChange={(e) =>
           setUpdateModal({ ...updateModal, categoryId: e.target.value })
@@ -423,6 +486,8 @@ const isSearching = searchQuery.trim() !== "";
               description: updateModal.description,
               price: updateModal.price,
               category: updateModal.categoryId,
+              //subcategoryId: updateModal.subcategoryId,
+              ...(updateModal.subcategoryId ? { subcategoryId: updateModal.subcategoryId } : {})
             });
             toast.success(`${updateModal.name} updated successfully`);
             fetchMenuItems();
@@ -433,6 +498,7 @@ const isSearching = searchQuery.trim() !== "";
               description: "",
               price: "",
               categoryId: "",
+              subcategoryId:"",
             });
           }}
           className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
